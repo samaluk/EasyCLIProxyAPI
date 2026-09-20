@@ -425,6 +425,7 @@ struct CoreStatus {
 struct CoreLatest {
     version: String,
     asset_name: String,
+    reviewed: bool,
 }
 
 #[derive(Clone, Serialize)]

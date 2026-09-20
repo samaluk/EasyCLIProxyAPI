@@ -675,6 +675,9 @@ pub(crate) async fn start_app_update(
     if portable_update_platform_key().is_none() {
         return Err("The current platform does not support in-app automatic upgrades".to_string());
     }
+    // Serialize the channel guard with channel changes and core installation.
+    let core_state = app.state::<CoreProcessState>();
+    let _channel_guard = lock_core_operation(core_state.inner())?;
     let config = app.state::<GuiConfigState>().snapshot()?;
     reviewed_app_update_guard(&config)?;
     let token = CancellationToken::new();

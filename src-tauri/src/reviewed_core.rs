@@ -256,6 +256,7 @@ pub(crate) async fn check_reviewed_core(config: &GuiConfigFile) -> Result<CoreLa
     let manifest = fetch_manifest(config).await?;
     let asset = selected_asset(&manifest)?;
     Ok(CoreLatest {
+        reviewed: true,
         version: normalize_version(&manifest.tag),
         asset_name: asset.url.rsplit('/').next().unwrap().to_string(),
     })
@@ -297,7 +298,33 @@ fn parse_health(
             "default_reasoning_level",
         ] {
             if let Some(value) = model.get(name).filter(|value| !value.is_null()) {
-                fields.insert(name.into(), value.clone());
+                let normalized = if name == "supported_reasoning_levels" {
+                    value
+                        .as_array()
+                        .map(|levels| {
+                            let efforts = levels
+                                .iter()
+                                .filter_map(|level| {
+                                    level.get("effort").and_then(serde_json::Value::as_str)
+                                })
+                                .collect::<BTreeSet<_>>();
+                            serde_json::json!(efforts)
+                        })
+                        .unwrap_or_else(|| value.clone())
+                } else if name.ends_with("modalities") {
+                    value
+                        .as_array()
+                        .map(|items| {
+                            serde_json::json!(items
+                                .iter()
+                                .filter_map(serde_json::Value::as_str)
+                                .collect::<BTreeSet<_>>())
+                        })
+                        .unwrap_or_else(|| value.clone())
+                } else {
+                    value.clone()
+                };
+                fields.insert(name.into(), normalized);
             }
         }
         model_map.insert(id.to_string(), fields);
@@ -654,6 +681,11 @@ mod tests {
             json!({"plugins":[{"id":"binding","registered":true,"effective_enabled":true}]});
         let before = parse_health(&catalog, &plugins).unwrap();
         assert!(validate_health(&before, &parse_health(&catalog, &plugins).unwrap()).is_ok());
+        let mut reordered = catalog.clone();
+        reordered["models"][0]["supported_reasoning_levels"] =
+            json!([{"effort":"max","description":"Updated label"},{"effort":"high"}]);
+        reordered["models"][0]["input_modalities"] = json!(["image", "text"]);
+        assert!(validate_health(&before, &parse_health(&reordered, &plugins).unwrap()).is_ok());
         let mut dropped = catalog.clone();
         dropped["models"][0]
             .as_object_mut()
