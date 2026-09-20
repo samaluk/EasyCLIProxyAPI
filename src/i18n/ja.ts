@@ -2,6 +2,17 @@ import type { MessageKey } from './locales/zh-CN';
 import { easyModeJa } from './easyMode';
 
 export const jaOverrides = {
+  "kernel.reviewed.title": "コアのリリースチャンネル",
+  "kernel.reviewed.active": "レビュー済みマニフェストを選択中です。コア更新はこの配信元のみを使用します。",
+  "kernel.reviewed.official": "公式リリースを選択中です。",
+  "kernel.reviewed.hint": "アーカイブのハッシュを検証し、設定とプラグインを保持します。起動やモデル一覧の検証に失敗すると元のコアを復元します。下のコア更新ボタンでインストールできます。",
+  "kernel.reviewed.appGuard": "このチャンネルでは公式アプリの自動更新を停止します。アプリのパッチには信頼された署名済みリリースまたは上流への統合が必要です。プラグインはストアで更新できます。",
+  "kernel.reviewed.backup": "以前のコアのバックアップ",
+  "kernel.reviewed.installed": "インストール済みレビューコア",
+  "kernel.reviewed.url": "レビューコアのマニフェストURL",
+  "kernel.reviewed.select": "レビューチャンネルを使用",
+  "kernel.reviewed.useOfficial": "公式チャンネルを使用",
+
   ...easyModeJa,
   'authFiles.settings.noModels': '該当するモデルはありません。上の欄で除外ルールを入力できます。',
   'authFiles.settings.button': "設定",
