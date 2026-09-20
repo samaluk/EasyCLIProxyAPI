@@ -9,6 +9,7 @@ mod codex_sessions;
 mod configuration_watcher;
 mod core_config;
 mod core_runtime;
+mod reviewed_core;
 mod desktop_theme;
 mod instance_lock;
 mod management_api;
@@ -48,6 +49,7 @@ use app_settings::*;
 use app_update::*;
 use core_config::*;
 use core_runtime::*;
+use reviewed_core::*;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
 use instance_lock::*;
@@ -620,6 +622,7 @@ struct GuiConfigFile {
     proxy_url: String,
     proxy_override: bool,
     download_source: VersionDownloadSource,
+    reviewed_core_manifest_url: String,
     custom_download_mirrors: Vec<String>,
     active_custom_download_mirror: String,
     prefer_gitcode_downloads: bool,
@@ -925,6 +928,7 @@ impl Default for GuiConfigFile {
             proxy_url: String::new(),
             proxy_override: false,
             download_source: VersionDownloadSource::Github,
+            reviewed_core_manifest_url: String::new(),
             custom_download_mirrors: Vec::new(),
             active_custom_download_mirror: String::new(),
             prefer_gitcode_downloads: false,
@@ -2712,6 +2716,8 @@ fn main() {
             check_latest_core,
             detect_bundled_core,
             install_core_version,
+            get_reviewed_core_settings,
+            set_reviewed_core_manifest,
             install_bundled_core,
             cancel_core_install,
             get_core_install_task,
