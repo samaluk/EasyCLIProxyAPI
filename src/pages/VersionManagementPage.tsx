@@ -19,6 +19,7 @@ import { MessageNotice, FloatingNotice, useAppNotice } from '../appNotice';
 import { createVersionManagementVisitTracker } from '../services/versionManagementVisits';
 import { AppReleaseNotes } from '../components/AppReleaseNotes';
 import { useDialogFocusTrap } from '../components/useDialogFocusTrap';
+import { InstalledPluginUpdates } from '../components/InstalledPluginUpdates';
 import { ReviewedCoreChannel } from '../components/ReviewedCoreChannel';
 
 export type CoreInstallResult = {
@@ -109,6 +110,7 @@ export function VersionManagementPage() {
   const [bundledCoreError, setBundledCoreError] = useState('');
 
   const [installing, setInstalling] = useState(false);
+  const [pluginUpdating, setPluginUpdating] = useState(false);
   const [progress, setProgress] = useState<CoreInstallTask | null>(null);
   const [installDialogOpen, setInstallDialogOpen] = useState(false);
   const [confirmUpdateOpen, setConfirmUpdateOpen] = useState(false);
@@ -419,8 +421,8 @@ export function VersionManagementPage() {
   const currentVersion = coreStatus?.currentVersion ?? '';
   const coreInstalled = Boolean(coreStatus?.installed);
   const coreProcessBusy = Boolean(coreStatus?.starting);
-  const busy = checkingLatest || installing || coreProcessBusy;
-  const installDisabled = installing || coreProcessBusy;
+  const busy = checkingLatest || installing || coreProcessBusy || pluginUpdating;
+  const installDisabled = installing || coreProcessBusy || pluginUpdating;
 
   const resolvedAppVersion = appUpdate?.currentVersion || installedAppVersion;
   const currentAppVersion = resolvedAppVersion ? displayAppVersion(resolvedAppVersion) : t('common.detecting');
@@ -530,7 +532,7 @@ export function VersionManagementPage() {
     <section className="page management-page version-management-page">
       <MessageNotice message={versionSourceError} onDismiss={() => setVersionSourceError('')} />
       <section className="version-list">
-        <ReviewedCoreChannel busy={installing || appUpdateTask.running} onChange={() => {
+        <ReviewedCoreChannel busy={installing || appUpdateTask.running || pluginUpdating} onChange={() => {
           resetLatest();
           void checkLatest();
           void checkAppUpdate();
@@ -623,7 +625,7 @@ export function VersionManagementPage() {
             <button
               type="button"
               className="secondary-button"
-              disabled={checkingAppUpdate || appUpdateTask.running}
+              disabled={checkingAppUpdate || appUpdateTask.running || pluginUpdating}
               onClick={() => void checkAppUpdate()}
             >
               <RefreshCw size={15} className={checkingAppUpdate ? 'spin' : ''} aria-hidden="true" />
@@ -634,7 +636,7 @@ export function VersionManagementPage() {
               <button
                 type="button"
                 className="primary-button"
-                disabled={appUpdateTask.running}
+                disabled={appUpdateTask.running || pluginUpdating}
                 onClick={requestAppUpdate}
               >
                 <Download size={15} aria-hidden="true" />
@@ -727,6 +729,8 @@ export function VersionManagementPage() {
           onOpenUrl={openAppRelease}
         />
       </section>
+
+      <InstalledPluginUpdates busy={installing || appUpdateTask.running || coreProcessBusy} running={Boolean(coreStatus?.running)} onBusyChange={setPluginUpdating} />
 
       {customMirrorDialogOpen ? (
         <div className="install-dialog-backdrop custom-mirror-dialog-backdrop">
