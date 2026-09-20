@@ -19,6 +19,7 @@ import { MessageNotice, FloatingNotice, useAppNotice } from '../appNotice';
 import { createVersionManagementVisitTracker } from '../services/versionManagementVisits';
 import { AppReleaseNotes } from '../components/AppReleaseNotes';
 import { useDialogFocusTrap } from '../components/useDialogFocusTrap';
+import { ReviewedCoreChannel } from '../components/ReviewedCoreChannel';
 
 export type CoreInstallResult = {
   version: string;
@@ -529,6 +530,11 @@ export function VersionManagementPage() {
     <section className="page management-page version-management-page">
       <MessageNotice message={versionSourceError} onDismiss={() => setVersionSourceError('')} />
       <section className="version-list">
+        <ReviewedCoreChannel busy={installing || appUpdateTask.running} onChange={() => {
+          resetLatest();
+          void checkLatest();
+          void checkAppUpdate();
+        }} />
         <div className="version-source-row" aria-label={t('kernel.versions.downloadSource')}>
           <div className="version-source-copy">
             <strong>{t('kernel.versions.downloadSource')}</strong>
