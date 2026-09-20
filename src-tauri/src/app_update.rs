@@ -660,6 +660,8 @@ pub(crate) async fn start_app_update(
     if portable_update_platform_key().is_none() {
         return Err("当前平台不支持应用内自动升级".to_string());
     }
+    // Serialize the channel guard with channel changes and core installation.
+    let _channel_guard = lock_core_operation(app.state::<CoreProcessState>().inner())?;
     let config = gui_config_state.snapshot()?;
     reviewed_app_update_guard(&config)?;
     let proxy_url = config.proxy_url.clone();

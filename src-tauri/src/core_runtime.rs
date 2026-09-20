@@ -166,6 +166,7 @@ pub(crate) async fn check_latest_core(
     let asset = select_release_asset(&release, &platform)?;
 
     Ok(CoreLatest {
+        reviewed: false,
         version: normalize_version(&release.tag_name),
         asset_name: asset.name.clone(),
     })

@@ -62,9 +62,9 @@ describe('VersionManagement update triggers', () => {
   };
 
   for (const name of ['checkAppUpdate', 'checkLatest']) {
-    it(`calls ${name} only from the visit effect and its manual check button`, () => {
+    it(`calls ${name} from visits, manual checks and explicit channel changes`, () => {
       const calls = findCalls(name);
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(3);
       const triggers = calls.map((call) => {
         let ancestor: ts.Node | undefined = call.parent;
         while (ancestor) {
@@ -75,7 +75,7 @@ describe('VersionManagement update triggers', () => {
         }
         return undefined;
       });
-      expect(triggers.sort()).toEqual(['onClick', 'useEffect']);
+      expect(triggers.sort()).toEqual(['onChange', 'onClick', 'useEffect']);
     });
   }
 
@@ -169,4 +169,10 @@ describe('VersionManagement helper functions', () => {
     expect(coreUpdateAvailable('1.0', '1.0.1')).toBe(false);
     expect(coreUpdateAvailable('1.0.0.0', '1.0.1')).toBe(false);
   });
+});
+
+
+it('detects a changed reviewed release without ordering commit hashes', () => {
+  expect(coreUpdateAvailable('7.3.9-review.ffabcd0', '7.3.9-review.00abcd0', true)).toBe(true);
+  expect(coreUpdateAvailable('7.3.9-review.00abcd0', '7.3.9-review.00abcd0', true)).toBe(false);
 });
