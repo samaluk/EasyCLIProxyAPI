@@ -188,8 +188,12 @@ pub(crate) async fn check_app_update(
     let portable_support = target
         .map(|(_, arch)| validate_local_portable_app_manifest(arch))
         .transpose()?;
-    let auto_update_supported = portable_support == Some(true) && asset.is_some();
-    let unsupported_reason = if auto_update_supported {
+    let reviewed_block = reviewed_app_update_guard(&config).err();
+    let auto_update_supported =
+        reviewed_block.is_none() && portable_support == Some(true) && asset.is_some();
+    let unsupported_reason = if reviewed_block.is_some() {
+        reviewed_block
+    } else if auto_update_supported {
         None
     } else if portable_support != Some(true) {
         Some("当前程序不是支持自动升级的便携版，请手动下载首个支持版本".to_string())
@@ -657,6 +661,7 @@ pub(crate) async fn start_app_update(
         return Err("当前平台不支持应用内自动升级".to_string());
     }
     let config = gui_config_state.snapshot()?;
+    reviewed_app_update_guard(&config)?;
     let proxy_url = config.proxy_url.clone();
     let download_source = config.selected_download_candidate();
     let token = CancellationToken::new();

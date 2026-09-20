@@ -144,6 +144,9 @@ pub(crate) async fn check_latest_core(
     let _detection_guard = VERSION_SOURCE_DETECTION_LOCK.lock().await;
     let platform = current_core_platform()?;
     let config = gui_config_state.snapshot()?;
+    if !config.reviewed_core_manifest_url.is_empty() {
+        return check_reviewed_core(&config).await;
+    }
     let proxy_url = config.proxy_url.clone();
     let client = http_client(&proxy_url, &config.custom_download_mirrors)?;
     let requested_source = config.selected_download_candidate();
@@ -183,6 +186,7 @@ pub(crate) async fn install_bundled_core(
         let state = app.state::<CoreDownloadState>();
         let process_state = app.state::<CoreProcessState>();
         let gui_config_state = app.state::<GuiConfigState>();
+        reviewed_official_core_guard(&gui_config_state.snapshot()?)?;
         let (info, archive_path) = bundled_core_archive()?
             .ok_or_else(|| "当前发行包没有匹配此系统架构的内置内核".to_string())?;
         let token = CancellationToken::new();
@@ -246,12 +250,16 @@ pub(crate) async fn install_core_version(
     window: tauri::Window,
     version: Option<String>,
 ) -> Result<CoreInstallResult, String> {
+    if !app.state::<GuiConfigState>().snapshot()?.reviewed_core_manifest_url.is_empty() {
+        return install_reviewed_core(app, window, version).await;
+    }
     tauri::async_runtime::spawn_blocking(move || {
         let _guard = lock_core_operation(app.state::<CoreProcessState>().inner())?;
         let state = app.state::<CoreDownloadState>();
         let process_state = app.state::<CoreProcessState>();
         let gui_config_state = app.state::<GuiConfigState>();
         let config = gui_config_state.snapshot()?;
+        reviewed_official_core_guard(&config)?;
         let proxy_url = config.proxy_url.clone();
         let token = CancellationToken::new();
         state.start(token.clone(), version.clone())?;
@@ -1146,6 +1154,7 @@ pub(crate) async fn download_asset_inner(
         ensure_not_cancelled(token, Some(archive_path))?;
 
         let chunk = chunk.map_err(|err| format!("读取下载数据失败: {err}"))?;
+        validate_download_chunk_size(downloaded, chunk.len() as u64, expected_total)?;
         file.write_all(&chunk)
             .map_err(|err| format!("保存下载数据失败: {err}"))?;
         hasher.update(&chunk);
@@ -1440,6 +1449,21 @@ pub(crate) fn start_core_process_inner(
     process_state: &CoreProcessState,
     gui_config: &GuiConfigFile,
 ) -> Result<(), String> {
+    start_core_process_with_config_policy(process_state, gui_config, false)
+}
+
+pub(crate) fn start_core_process_preserving_config(
+    process_state: &CoreProcessState,
+    gui_config: &GuiConfigFile,
+) -> Result<(), String> {
+    start_core_process_with_config_policy(process_state, gui_config, true)
+}
+
+fn start_core_process_with_config_policy(
+    process_state: &CoreProcessState,
+    gui_config: &GuiConfigFile,
+    preserve_config: bool,
+) -> Result<(), String> {
     process_state.ensure_active()?;
     let mut resolved_config = gui_config.clone();
     resolved_config.proxy_url = network_proxy::resolve(gui_config);
@@ -1468,7 +1492,15 @@ pub(crate) fn start_core_process_inner(
         ));
     }
 
-    let config_path = merge_core_config_for_start(&install_dir, gui_config)?;
+    let config_path = if preserve_config {
+        let path = install_dir.join(CORE_CONFIG_FILE);
+        if !path.is_file() {
+            return Err("Reviewed updates require an existing core configuration".into());
+        }
+        path
+    } else {
+        merge_core_config_for_start(&install_dir, gui_config)?
+    };
     let config_path = path_to_string(&config_path);
     let log_path = core_start_log_path(&install_dir, &gui_config.auth_dir);
     let start_once = || {
@@ -1969,6 +2001,20 @@ pub(crate) fn validate_downloaded_asset(
         &downloaded.sha256,
         asset.digest.as_deref(),
     )
+}
+
+pub(crate) fn validate_download_chunk_size(
+    downloaded: u64,
+    incoming: u64,
+    expected: Option<u64>,
+) -> Result<(), String> {
+    if downloaded.checked_add(incoming)
+        .is_none_or(|total| expected.is_some_and(|limit| total > limit))
+    {
+        Err("Download exceeds the declared archive size".into())
+    } else {
+        Ok(())
+    }
 }
 
 pub(crate) fn validate_download_metadata(
