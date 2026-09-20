@@ -2,6 +2,16 @@ import type { MessageKey } from './zh-CN';
 import { easyModeEn } from '../easyMode';
 
 export const en: Record<MessageKey, string> = {
+  "kernel.reviewed.title": "Core release channel",
+  "kernel.reviewed.active": "Reviewed manifest selected. Core updates use only this source.",
+  "kernel.reviewed.official": "Official releases selected.",
+  "kernel.reviewed.hint": "Reviewed updates verify the archive hash, preserve configuration and plugins, and restore the previous binary if startup or catalog checks fail. Use the core update button below to install.",
+  "kernel.reviewed.appGuard": "Official app self-update is blocked while this channel is active. The app patches need a trusted signed release or upstream inclusion. Plugin updates remain available in the plugin store.",
+  "kernel.reviewed.backup": "Previous binary backup",
+  "kernel.reviewed.installed": "Installed reviewed core",
+  "kernel.reviewed.url": "Reviewed core manifest URL",
+  "kernel.reviewed.select": "Use reviewed channel",
+  "kernel.reviewed.useOfficial": "Use official channel",
   ...easyModeEn,
   'authFiles.settings.noModels': 'No matching models. Enter exclusion rules above.',
   'authFiles.settings.button': "Settings",

@@ -1,6 +1,17 @@
 import { easyModeZhCN } from '../easyMode';
 
 export const zhCN = {
+  "kernel.reviewed.title": "内核发布渠道",
+  "kernel.reviewed.active": "已选择审核清单。内核更新仅使用此来源。",
+  "kernel.reviewed.official": "已选择官方发布。",
+  "kernel.reviewed.hint": "审核更新会校验压缩包哈希、保留配置和插件，并在启动或模型目录检查失败时恢复原内核。请使用下方的内核更新按钮安装。",
+  "kernel.reviewed.appGuard": "启用此渠道时暂停官方应用自动更新。应用补丁需要受信任签名的发行版或上游合并。插件仍可在插件商店更新。",
+  "kernel.reviewed.backup": "原内核备份",
+  "kernel.reviewed.installed": "已安装的审核内核",
+  "kernel.reviewed.url": "审核内核清单地址",
+  "kernel.reviewed.select": "使用审核渠道",
+  "kernel.reviewed.useOfficial": "使用官方渠道",
+
   ...easyModeZhCN,
   'authFiles.settings.noModels': '没有匹配的候选模型，可在上方手动填写排除规则。',
   'authFiles.settings.button': "设置",
