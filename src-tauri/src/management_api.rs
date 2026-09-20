@@ -62,10 +62,43 @@ pub(crate) struct ManagementRequest {
 
 #[tauri::command]
 pub(crate) async fn management_request(
+    app: tauri::AppHandle,
     gui_config_state: tauri::State<'_, GuiConfigState>,
     request: ManagementRequest,
 ) -> Result<serde_json::Value, String> {
     let config = gui_config_state.snapshot()?;
+    let path = request.path.trim().trim_start_matches('/');
+    if request.method.trim().eq_ignore_ascii_case("POST") && path.starts_with("plugin-store/") && path.ends_with("/install") {
+        // Plugin replacement must not race core replacement or a manual restart.
+        return tauri::async_runtime::spawn_blocking(move || {
+            use tauri::Manager;
+            let _guard = super::lock_core_operation(app.state::<super::CoreProcessState>().inner())?;
+            if app.state::<super::AppUpdateState>().snapshot().running {
+                return Err("Wait for the app update to finish before updating plugins".into());
+            }
+            tauri::async_runtime::block_on(async {
+                let current = management_request_inner(&config, ManagementRequest {
+                    method: "GET".into(), path: "plugins".into(), query: None, body: None, timeout_ms: Some(5000),
+                }).await?;
+                let id = request.path.trim().trim_start_matches('/').strip_prefix("plugin-store/")
+                    .and_then(|path| path.strip_suffix("/install")).unwrap_or_default();
+                validate_plugin_update_enabled(&current, id)?;
+                management_request_inner(&config, request).await
+            })
+        }).await.map_err(|error| format!("Plugin update worker failed: {error}"))?;
+    }
+    management_request_inner(&config, request).await
+}
+
+fn validate_plugin_update_enabled(current: &serde_json::Value, id: &str) -> Result<(), String> {
+    let enabled = current.get("plugins_enabled").and_then(serde_json::Value::as_bool) == Some(true)
+        && current.get("plugins").and_then(serde_json::Value::as_array).is_some_and(|plugins| plugins.iter().any(|plugin|
+            plugin.get("id").and_then(serde_json::Value::as_str) == Some(id)
+                && plugin.get("enabled").and_then(serde_json::Value::as_bool) == Some(true)));
+    if enabled { Ok(()) } else { Err("Plugin updates require an already enabled plugin; no enable setting was changed".into()) }
+}
+
+async fn management_request_inner(config: &GuiConfigFile, request: ManagementRequest) -> Result<serde_json::Value, String> {
     let method = match request.method.trim().to_ascii_uppercase().as_str() {
         "GET" => reqwest::Method::GET,
         "POST" => reqwest::Method::POST,
@@ -84,7 +117,8 @@ pub(crate) async fn management_request(
         .request(method, management_endpoint(&config, path)?)
         .header("Authorization", management_authorization(&config)?);
     if let Some(timeout_ms) = request.timeout_ms {
-        builder = builder.timeout(Duration::from_millis(timeout_ms.clamp(1_000, 120_000)));
+        let max_timeout = if request.method.trim().eq_ignore_ascii_case("POST") && path.trim_start_matches('/').starts_with("plugin-store/") && path.ends_with("/install") { 300_000 } else { 120_000 };
+        builder = builder.timeout(Duration::from_millis(timeout_ms.clamp(1_000, max_timeout)));
     }
     if let Some(query) = request.query {
         builder = builder.query(&query);
@@ -490,5 +524,21 @@ mod tests {
             core_logs_dir_path(auth_dir.to_str().unwrap(), &install_dir),
             install_dir.join(auth_dir).join("logs")
         );
+    }
+}
+
+
+#[cfg(test)]
+mod plugin_update_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn plugin_install_preflight_does_not_enable_disabled_or_unknown_plugins() {
+        let active = json!({"plugins_enabled":true,"plugins":[{"id":"example","enabled":true}]});
+        assert!(validate_plugin_update_enabled(&active,"example").is_ok());
+        assert!(validate_plugin_update_enabled(&active,"other").is_err());
+        assert!(validate_plugin_update_enabled(&json!({"plugins_enabled":true,"plugins":[{"id":"example","enabled":false}]}),"example").is_err());
+        assert!(validate_plugin_update_enabled(&json!({"plugins_enabled":false,"plugins":[{"id":"example","enabled":true}]}),"example").is_err());
     }
 }

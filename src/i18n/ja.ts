@@ -2,6 +2,22 @@ import type { MessageKey } from './locales/zh-CN';
 import { easyModeJa } from './easyMode';
 
 export const jaOverrides = {
+  "kernel.plugins.title": "プラグイン更新",
+  "kernel.plugins.hint": "有効なインストール済みプラグインを現在のレジストリから更新します。バージョンを指定し、配信元を自動変更しません。",
+  "kernel.plugins.start": "コアを起動してインストール済みプラグインを確認してください。",
+  "kernel.plugins.loaded": "{name} {version} がインストールされ、有効になりました。",
+  "kernel.plugins.restart": "{name} {version} がインストールされました。コアは再起動が必要と報告しています。実行中のタスクが終了してから再起動してください。",
+  "kernel.plugins.pending": "{name} {version} がインストールされましたが、有効化は未確認です。更新表示で登録状態を確認し、必要ならログを確認してタスク終了後に再起動してください。",
+  "kernel.plugins.unmatched": "一部のプラグインに確認済みの配信元がありません。既存の配信元を登録してください。",
+  "kernel.plugins.empty": "配信元を確認できるインストール済みプラグインがありません。",
+  "kernel.plugins.update": "更新",
+  "kernel.plugins.block.source": "インストール時の配信元と一致しません。",
+  "kernel.plugins.block.disabled": "プラグインまたはプラグイン機能が無効なため更新できません。",
+  "kernel.plugins.block.platform": "このプラットフォーム向けの更新がありません。",
+  "kernel.plugins.block.auth": "配信元の認証を設定してから更新してください。",
+  "kernel.plugins.block.version": "リリース ID またはバージョンが無効です。",
+
+
   "kernel.reviewed.title": "コアのリリースチャンネル",
   "kernel.reviewed.active": "レビュー済みマニフェストを選択中です。コア更新はこの配信元のみを使用します。",
   "kernel.reviewed.official": "公式リリースを選択中です。",

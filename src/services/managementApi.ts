@@ -46,7 +46,7 @@ export const managementApi = {
   post: <T = ManagementJson>(
     path: string,
     body?: ManagementJson,
-    options: Pick<ManagementRequestOptions, 'timeoutMs'> = {},
+    options: Pick<ManagementRequestOptions, 'timeoutMs' | 'query'> = {},
   ) => request<T>('POST', path, { ...options, body }),
   put: <T = ManagementJson>(path: string, body?: ManagementJson) =>
     request<T>('PUT', path, { body }),
