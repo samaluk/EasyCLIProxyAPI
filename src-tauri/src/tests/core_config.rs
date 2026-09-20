@@ -1166,6 +1166,7 @@ fn startup_preserves_all_user_owned_yaml_and_only_applies_gui_managed_values() {
         proxy_url: "socks5://127.0.0.1:7890".to_string(),
         proxy_override: true,
         download_source: VersionDownloadSource::Github,
+        reviewed_core_manifest_url: String::new(),
         custom_download_mirrors: Vec::new(),
         active_custom_download_mirror: String::new(),
         prefer_gitcode_downloads: false,

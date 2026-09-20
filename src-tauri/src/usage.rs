@@ -4816,6 +4816,7 @@ mod tests {
             proxy_url: String::new(),
             proxy_override: false,
             download_source: VersionDownloadSource::Github,
+            reviewed_core_manifest_url: String::new(),
             custom_download_mirrors: Vec::new(),
             active_custom_download_mirror: String::new(),
             prefer_gitcode_downloads: false,
