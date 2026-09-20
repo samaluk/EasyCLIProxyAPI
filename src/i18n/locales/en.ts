@@ -2,6 +2,21 @@ import type { MessageKey } from './zh-CN';
 import { easyModeEn } from '../easyMode';
 
 export const en: Record<MessageKey, string> = {
+  "kernel.plugins.title": "Plugin updates",
+  "kernel.plugins.hint": "Update enabled, installed plugins from their current registry. Versions are pinned and sources never switch automatically.",
+  "kernel.plugins.start": "Start the core to check installed plugins.",
+  "kernel.plugins.loaded": "{name} {version} is installed and active.",
+  "kernel.plugins.restart": "{name} {version} is installed. The core reports that a restart is required. Restart it when active tasks have finished.",
+  "kernel.plugins.pending": "{name} {version} is installed but not yet confirmed active. Refresh to check registration; inspect the core logs and restart if needed after active tasks finish.",
+  "kernel.plugins.unmatched": "Some installed plugins have no verified matching source. Register their existing source before using this panel.",
+  "kernel.plugins.empty": "No installed plugins with a verified matching registry source were found.",
+  "kernel.plugins.update": "Update",
+  "kernel.plugins.block.source": "The installed source does not match.",
+  "kernel.plugins.block.disabled": "Updates are disabled because this plugin or the plugin system is disabled.",
+  "kernel.plugins.block.platform": "No update is available for this platform.",
+  "kernel.plugins.block.auth": "This source requires authentication. Configure it before updating.",
+  "kernel.plugins.block.version": "The release ID or version is invalid.",
+
   "kernel.reviewed.title": "Core release channel",
   "kernel.reviewed.active": "Reviewed manifest selected. Core updates use only this source.",
   "kernel.reviewed.official": "Official releases selected.",

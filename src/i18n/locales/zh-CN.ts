@@ -1,6 +1,22 @@
 import { easyModeZhCN } from '../easyMode';
 
 export const zhCN = {
+  "kernel.plugins.title": "插件更新",
+  "kernel.plugins.hint": "从当前注册源更新已启用并安装的插件。更新指定版本，不会自动切换来源。",
+  "kernel.plugins.start": "启动内核后可检查已安装插件。",
+  "kernel.plugins.loaded": "{name} {version} 已安装并生效。",
+  "kernel.plugins.restart": "{name} {version} 已安装。内核提示需要重启。请在当前任务结束后重启。",
+  "kernel.plugins.pending": "{name} {version} 已安装，但尚未确认生效。请刷新检查注册状态；如仍未生效，请检查内核日志并在任务结束后按需重启。",
+  "kernel.plugins.unmatched": "部分已安装插件没有可验证的匹配来源。请先注册其原有来源。",
+  "kernel.plugins.empty": "没有找到已安装且来源可验证的插件。",
+  "kernel.plugins.update": "更新",
+  "kernel.plugins.block.source": "已安装来源不匹配。",
+  "kernel.plugins.block.disabled": "插件或插件系统已禁用，无法更新。",
+  "kernel.plugins.block.platform": "当前平台没有可用更新。",
+  "kernel.plugins.block.auth": "此来源需要身份验证。请先配置后再更新。",
+  "kernel.plugins.block.version": "发布 ID 或版本无效。",
+
+
   "kernel.reviewed.title": "内核发布渠道",
   "kernel.reviewed.active": "已选择审核清单。内核更新仅使用此来源。",
   "kernel.reviewed.official": "已选择官方发布。",
