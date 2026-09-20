@@ -665,3 +665,18 @@ describe('API 接入配置合并', () => {
     expect(Array.from(selected)).toEqual(['model-a', 'model-b']);
   });
 });
+
+it('preserves explicit Codex model capabilities when editing provider settings', () => {
+  const model = {
+    name: 'deployment-pro', alias: 'work/pro',
+    'canonical-model-id': 'gpt-example-pro',
+    'max-context-length': 1050000, 'max-completion-tokens': 128000,
+    'input-modalities': ['text', 'image'], 'output-modalities': ['text'],
+    thinking: { levels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+  };
+  const result = buildProviderRecord('codex-api-key', {
+    name: '', apiKey: 'test-key', baseUrl: 'https://gateway.example', priority: '1',
+    models: [{ name: model.name, alias: model.alias }],
+  }, { 'api-key': 'test-key', 'base-url': 'https://gateway.example', models: [model] });
+  expect(result.models).toEqual([model]);
+});
