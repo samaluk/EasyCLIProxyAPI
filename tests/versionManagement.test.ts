@@ -172,7 +172,10 @@ describe('VersionManagement helper functions', () => {
 });
 
 
-it('detects a changed reviewed release without ordering commit hashes', () => {
-  expect(coreUpdateAvailable('7.3.9-review.ffabcd0', '7.3.9-review.00abcd0', true)).toBe(true);
-  expect(coreUpdateAvailable('7.3.9-review.00abcd0', '7.3.9-review.00abcd0', true)).toBe(false);
+it('requires the backend revision decision for reviewed releases', () => {
+  expect(coreUpdateAvailable('7.3.9-review.ffabcd0', '7.3.9-review.00abcd0', true, true)).toBe(true);
+  expect(coreUpdateAvailable('7.3.9-review.98f4a9f', '7.3.9-review.7f1aa2e', true, false)).toBe(false);
+  expect(coreUpdateAvailable('7.3.9-review.98f4a9f', '7.3.9-review.7f1aa2e', true)).toBe(false);
+  expect(coreUpdateAvailable('7.3.9-review.00abcd0', '7.3.9-review.00abcd0', true, true)).toBe(false);
+  expect(coreUpdateAvailable('7.3.9-review.00abcd0', '7.3.9-review.00abcd0', true, false)).toBe(false);
 });

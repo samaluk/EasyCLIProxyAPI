@@ -454,6 +454,8 @@ struct CoreLatest {
     version: String,
     asset_name: String,
     reviewed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    update_available: Option<bool>,
 }
 
 #[derive(Clone, Serialize)]

@@ -9,6 +9,9 @@ const APP_UPDATE_BLOCK: &str = "Reviewed core channel is active. Official app up
 #[serde(deny_unknown_fields)]
 pub(crate) struct ReviewedCoreManifest {
     schema_version: u32,
+    /// Monotonic publication sequence, independent of version or commit ordering.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    revision: Option<u64>,
     repository: String,
     tag: String,
     commit: String,
@@ -36,6 +39,8 @@ struct ReviewedCoreProvenance {
     binary_sha256: String,
     installed_at_unix: u64,
     backup_dir: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    revision: Option<u64>,
 }
 
 #[derive(Serialize)]
@@ -68,6 +73,9 @@ fn is_hex(value: &str, length: usize) -> bool {
 }
 
 fn validate_manifest(manifest: &ReviewedCoreManifest) -> Result<(), String> {
+    if manifest.revision == Some(0) {
+        return Err("Reviewed channel revision must be a positive integer".into());
+    }
     let repository_parts = manifest.repository.split('/').collect::<Vec<_>>();
     if manifest.schema_version != 1
         || repository_parts.len() != 2
@@ -225,6 +233,89 @@ fn settings(config: &GuiConfigFile) -> Result<ReviewedCoreSettings, String> {
     })
 }
 
+// Unlike the settings display, update decisions must not silently ignore
+// missing, malformed or mismatched provenance and reset the revision floor.
+fn update_provenance(install: &Path) -> Result<Option<ReviewedCoreProvenance>, String> {
+    let path = install.join(PROVENANCE_FILE);
+    let bytes = match fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            if read_core_metadata(install)
+                .is_some_and(|metadata| metadata.version.contains("review"))
+            {
+                return Err("Installed reviewed core has no provenance. Restore its verified provenance before updating.".into());
+            }
+            return Ok(None);
+        }
+        Err(_) => return Err("Could not read installed reviewed core provenance".into()),
+    };
+    let record: ReviewedCoreProvenance = serde_json::from_slice(&bytes)
+        .map_err(|_| "Installed reviewed core provenance is invalid".to_string())?;
+    if record.revision == Some(0) {
+        return Err("Installed reviewed core revision is invalid".into());
+    }
+    let binary = find_core_binary(install).ok_or("Installed reviewed core binary is missing")?;
+    if sha256_file(&binary)? != record.binary_sha256 {
+        return Err("Installed core does not match its reviewed provenance. Verify the installed binary before updating.".into());
+    }
+    Ok(Some(record))
+}
+
+fn same_reviewed_artifact(
+    installed: &ReviewedCoreProvenance,
+    manifest: &ReviewedCoreManifest,
+    asset: &ReviewedCoreAsset,
+) -> bool {
+    installed.repository == manifest.repository
+        && installed.tag == manifest.tag
+        && installed.commit == manifest.commit
+        && installed.archive_sha256 == asset.sha256
+}
+
+fn reviewed_update_available(
+    manifest_url: &str,
+    installed: Option<&ReviewedCoreProvenance>,
+    manifest: &ReviewedCoreManifest,
+    asset: &ReviewedCoreAsset,
+) -> Result<bool, String> {
+    if let Some(installed) = installed {
+        if same_reviewed_artifact(installed, manifest, asset) {
+            return Ok(false);
+        }
+        if installed.repository == manifest.repository {
+            if installed.tag == manifest.tag {
+                return Err("Reviewed release tag now identifies a different commit or archive. Publish a unique version instead of replacing an existing artifact.".into());
+            }
+            let previous = installed.revision.ok_or("Installed reviewed core has no channel revision. Seed its verified revision or reinstall the exact current artifact from a revisioned manifest before changing releases.")?;
+            let next = manifest.revision.ok_or(
+                "Reviewed manifest has no channel revision; refusing an unversioned replacement",
+            )?;
+            if next <= previous {
+                return Err(format!("Reviewed channel revision {next} is not newer than installed revision {previous}. The manifest may be cached; refusing to replace the installed core."));
+            }
+        } else if installed.manifest_url == manifest_url {
+            return Err("Reviewed channel changed repositories. Explicitly select the new repository's manifest URL before updating.".into());
+        }
+    }
+    if manifest.revision.is_none() {
+        return Err("Reviewed manifest needs a positive channel revision before installing a different artifact".into());
+    }
+    Ok(true)
+}
+
+fn installation_revision(
+    installed: Option<&ReviewedCoreProvenance>,
+    manifest: &ReviewedCoreManifest,
+    asset: &ReviewedCoreAsset,
+) -> Option<u64> {
+    // Reinstalling identical bytes from an old cached manifest must never lower
+    // the floor used by a later update. It can safely seed legacy provenance.
+    if let Some(installed) = installed.filter(|old| same_reviewed_artifact(old, manifest, asset)) {
+        return installed.revision.max(manifest.revision);
+    }
+    manifest.revision
+}
+
 #[tauri::command]
 pub(crate) fn get_reviewed_core_settings(
     state: tauri::State<'_, GuiConfigState>,
@@ -255,8 +346,16 @@ pub(crate) fn set_reviewed_core_manifest(
 pub(crate) async fn check_reviewed_core(config: &GuiConfigFile) -> Result<CoreLatest, String> {
     let manifest = fetch_manifest(config).await?;
     let asset = selected_asset(&manifest)?;
+    let installed = update_provenance(&core_install_dir()?)?;
+    let available = reviewed_update_available(
+        &config.reviewed_core_manifest_url,
+        installed.as_ref(),
+        &manifest,
+        asset,
+    )?;
     Ok(CoreLatest {
         reviewed: true,
+        update_available: Some(available),
         version: normalize_version(&manifest.tag),
         asset_name: asset.url.rsplit('/').next().unwrap().to_string(),
     })
@@ -555,6 +654,9 @@ pub(crate) async fn install_reviewed_core(
             }
             let asset = selected_asset(&manifest)?.clone();
             let install = core_install_dir()?;
+            let installed = update_provenance(&install)?;
+            reviewed_update_available(&config.reviewed_core_manifest_url, installed.as_ref(), &manifest, &asset)?;
+            let revision = installation_revision(installed.as_ref(), &manifest, &asset);
             let binary = find_core_binary(&install).ok_or("Install an initial core before switching to reviewed updates")?;
             let work = core_base_dir()?.join(format!("reviewed-stage-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos()));
             fs::create_dir(&work).map_err(|e| e.to_string())?;
@@ -579,7 +681,7 @@ pub(crate) async fn install_reviewed_core(
                     start_core_process_preserving_config(process.inner(), &config)?;
                     tauri::async_runtime::block_on(wait_healthy(&config, &baseline, process.inner()))?;
                     write_core_metadata(&install, &CoreMetadata { version: normalize_version(&manifest.tag), asset_name: asset.url.rsplit('/').next().unwrap().into(), installed_at_unix: unix_now() })?;
-                    let provenance = ReviewedCoreProvenance { manifest_url: config.reviewed_core_manifest_url.clone(), repository: manifest.repository.clone(), tag: manifest.tag.clone(), commit: manifest.commit.clone(), archive_sha256: asset.sha256.clone(), binary_sha256, installed_at_unix: unix_now(), backup_dir: path_to_string(&backup) };
+                    let provenance = ReviewedCoreProvenance { manifest_url: config.reviewed_core_manifest_url.clone(), repository: manifest.repository.clone(), tag: manifest.tag.clone(), commit: manifest.commit.clone(), archive_sha256: asset.sha256.clone(), binary_sha256, installed_at_unix: unix_now(), backup_dir: path_to_string(&backup), revision };
                     fs::write(install.join(PROVENANCE_FILE), serde_json::to_vec_pretty(&provenance).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
                     Ok(())
                 }, || stop_candidate(process.inner(), config.port));
@@ -605,7 +707,7 @@ mod tests {
 
     fn manifest() -> ReviewedCoreManifest {
         serde_json::from_value(json!({
-            "schema_version":1,"repository":"example/CLIProxyAPI","tag":"v7.3.9-review.abc1234",
+            "schema_version":1,"revision":100,"repository":"example/CLIProxyAPI","tag":"v7.3.9-review.abc1234",
             "commit":"a".repeat(40),"assets":[{"os":"darwin","arch":"arm64",
                 "url":"https://github.com/example/CLIProxyAPI/releases/download/v7.3.9-review.abc1234/core.tar.gz",
                 "sha256":"b".repeat(64),"size":42000}]
@@ -644,6 +746,206 @@ mod tests {
         let mut value = manifest();
         value.commit = "HEAD".into();
         assert!(validate_manifest(&value).is_err());
+        let mut value = manifest();
+        value.revision = Some(0);
+        assert!(validate_manifest(&value).is_err());
+        value.revision = None;
+        assert!(validate_manifest(&value).is_ok());
+        let mut raw = serde_json::to_value(manifest()).unwrap();
+        raw["revision"] = json!(-1);
+        assert!(serde_json::from_value::<ReviewedCoreManifest>(raw).is_err());
+    }
+
+    fn provenance(value: &ReviewedCoreManifest) -> ReviewedCoreProvenance {
+        ReviewedCoreProvenance {
+            manifest_url: "https://example.org/channel.json".into(),
+            repository: value.repository.clone(),
+            tag: value.tag.clone(),
+            commit: value.commit.clone(),
+            archive_sha256: value.assets[0].sha256.clone(),
+            binary_sha256: "c".repeat(64),
+            installed_at_unix: 1000,
+            backup_dir: "backup".into(),
+            revision: value.revision,
+        }
+    }
+
+    #[test]
+    fn reviewed_revisions_reject_stale_or_equal_replacements_without_hash_ordering() {
+        let mut current = manifest();
+        current.tag = "v7.3.9-review.98f4a9f".into();
+        current.revision = Some(1789949722);
+        let installed = provenance(&current);
+        let mut next = manifest();
+        next.tag = "v7.3.9-review.7f1aa2e".into();
+        for revision in [Some(1789949700), Some(1789949722), None] {
+            next.revision = revision;
+            assert!(reviewed_update_available(
+                &installed.manifest_url,
+                Some(&installed),
+                &next,
+                &next.assets[0]
+            )
+            .is_err());
+        }
+        // A future rebase can have a lexically smaller hash. Only the revision
+        // determines publication order, not the tag text or Git ancestry.
+        next.tag = "v7.3.9-review.00abcde".into();
+        next.revision = Some(1789949723);
+        assert!(reviewed_update_available(
+            &installed.manifest_url,
+            Some(&installed),
+            &next,
+            &next.assets[0]
+        )
+        .unwrap());
+        assert!(
+            reviewed_update_available(
+                "https://example.org/pinned.json",
+                Some(&installed),
+                &{
+                    let mut stale = next.clone();
+                    stale.revision = Some(1);
+                    stale
+                },
+                &next.assets[0]
+            )
+            .is_err(),
+            "Changing a URL within the same repository must not reset the floor"
+        );
+    }
+
+    #[test]
+    fn same_artifact_reinstall_preserves_or_seeds_revision_and_rejects_changed_bytes() {
+        let mut candidate = manifest();
+        let installed = provenance(&candidate);
+        for revision in [None, Some(50), Some(100), Some(101)] {
+            candidate.revision = revision;
+            assert!(!reviewed_update_available(
+                &installed.manifest_url,
+                Some(&installed),
+                &candidate,
+                &candidate.assets[0]
+            )
+            .unwrap());
+            assert_eq!(
+                installation_revision(Some(&installed), &candidate, &candidate.assets[0]),
+                Some(revision.unwrap_or(0).max(100))
+            );
+        }
+        let mut legacy = installed.clone();
+        legacy.revision = None;
+        assert_eq!(
+            installation_revision(Some(&legacy), &candidate, &candidate.assets[0]),
+            Some(101)
+        );
+        candidate.assets[0].sha256 = "d".repeat(64);
+        for revision in [100, 101] {
+            candidate.revision = Some(revision);
+            assert!(
+                reviewed_update_available(
+                    &installed.manifest_url,
+                    Some(&installed),
+                    &candidate,
+                    &candidate.assets[0]
+                )
+                .is_err(),
+                "Existing tags must not identify replacement bytes"
+            );
+        }
+    }
+
+    #[test]
+    fn legacy_and_new_channel_migrations_require_explicit_trust() {
+        let current = manifest();
+        let mut installed = provenance(&current);
+        installed.revision = None;
+        let mut next = current.clone();
+        next.tag = "v7.3.9-review.next".into();
+        next.revision = Some(101);
+        assert!(reviewed_update_available(
+            &installed.manifest_url,
+            Some(&installed),
+            &next,
+            &next.assets[0]
+        )
+        .is_err());
+        assert!(
+            reviewed_update_available(&installed.manifest_url, None, &next, &next.assets[0])
+                .unwrap()
+        );
+        next.revision = None;
+        assert!(
+            reviewed_update_available(&installed.manifest_url, None, &next, &next.assets[0])
+                .is_err()
+        );
+        next.repository = "other/CLIProxyAPI".into();
+        next.revision = Some(1);
+        assert!(reviewed_update_available(
+            &installed.manifest_url,
+            Some(&installed),
+            &next,
+            &next.assets[0]
+        )
+        .is_err());
+        assert!(reviewed_update_available(
+            "https://other.example/channel.json",
+            Some(&installed),
+            &next,
+            &next.assets[0]
+        )
+        .unwrap());
+    }
+
+    #[test]
+    fn provenance_serializes_revision_and_unknown_installed_binary_fails_closed() {
+        let dir = test_dir("provenance");
+        assert!(update_provenance(&dir).unwrap().is_none());
+        write_core_metadata(
+            &dir,
+            &CoreMetadata {
+                version: "7.3.9-review.abc1234".into(),
+                asset_name: "core.tar.gz".into(),
+                installed_at_unix: 1000,
+            },
+        )
+        .unwrap();
+        assert!(update_provenance(&dir).is_err());
+        fs::write(dir.join(PROVENANCE_FILE), b"broken").unwrap();
+        assert!(update_provenance(&dir).is_err());
+        let binary = dir.join(if cfg!(windows) {
+            "cli-proxy-api.exe"
+        } else {
+            "cli-proxy-api"
+        });
+        fs::write(&binary, b"installed").unwrap();
+        let mut record = provenance(&manifest());
+        fs::write(
+            dir.join(PROVENANCE_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        assert!(update_provenance(&dir).is_err());
+        record.binary_sha256 = sha256_file(&binary).unwrap();
+        fs::write(
+            dir.join(PROVENANCE_FILE),
+            serde_json::to_vec(&record).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            update_provenance(&dir).unwrap().unwrap().revision,
+            Some(100)
+        );
+        record.revision = None;
+        let legacy = serde_json::to_value(&record).unwrap();
+        assert!(legacy.get("revision").is_none());
+        fs::write(
+            dir.join(PROVENANCE_FILE),
+            serde_json::to_vec(&legacy).unwrap(),
+        )
+        .unwrap();
+        assert!(update_provenance(&dir).unwrap().unwrap().revision.is_none());
+        fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]
@@ -807,6 +1109,43 @@ mod tests {
         );
         assert!(result.unwrap_err().contains("backup retained"));
         assert_eq!(fs::read(backup.join("core-binary")).unwrap(), b"previous");
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn failed_health_restores_existing_revision_floor() {
+        let dir = test_dir("revision-rollback");
+        let binary = dir.join(core_binary_name());
+        let staged = dir.join("candidate");
+        fs::write(&binary, b"previous").unwrap();
+        fs::write(&staged, b"candidate").unwrap();
+        let mut old = provenance(&manifest());
+        old.binary_sha256 = sha256_file(&binary).unwrap();
+        let original = serde_json::to_vec(&old).unwrap();
+        fs::write(dir.join(PROVENANCE_FILE), &original).unwrap();
+        let result = replace_and_check(
+            &dir,
+            &binary,
+            &staged,
+            &dir.join("backup"),
+            || {
+                let mut newer = old.clone();
+                newer.revision = Some(101);
+                fs::write(
+                    dir.join(PROVENANCE_FILE),
+                    serde_json::to_vec(&newer).unwrap(),
+                )
+                .unwrap();
+                Err("health failed".into())
+            },
+            || Ok(()),
+        );
+        assert!(result.is_err());
+        assert_eq!(fs::read(dir.join(PROVENANCE_FILE)).unwrap(), original);
+        assert_eq!(
+            update_provenance(&dir).unwrap().unwrap().revision,
+            Some(100)
+        );
         fs::remove_dir_all(dir).unwrap();
     }
 }
