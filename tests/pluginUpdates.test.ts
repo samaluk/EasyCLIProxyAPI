@@ -7,6 +7,7 @@ const entry: PluginUpdateEntry = {
   enabled: true, effective_enabled: true, installed_version: '1.0.0', version: '1.0.1',
   source_id: 'source_123', source_name: 'Reviewed', source_url: 'https://example.org/registry.json',
   installed_source_id: 'source_123', install_source_status: 'matched', update_available: true,
+  upgrade_allowed: true, revision: 101, installed_revision: 100,
   platforms: [{ goos: 'darwin', goarch: 'arm64' }],
 };
 const snapshot: PluginStoreSnapshot = { plugins_enabled: true, plugins: [entry] };
@@ -22,7 +23,7 @@ describe('installed plugin updates', () => {
   });
   it('pins the exact version and passes source separately from the URL path', () => {
     expect(pluginInstallRequest(entry, snapshot, platform)).toEqual({
-      path: '/plugin-store/reviewed-plugin/install', body: { version: '1.0.1' },
+      path: '/plugin-store/reviewed-plugin/install', body: { version: '1.0.1', upgrade_only: true },
       options: { query: { source: 'source_123' }, timeoutMs: 300000 },
     });
   });
@@ -45,7 +46,15 @@ describe('installed plugin updates', () => {
 });
 
 
-it('offers the exact curated version even when its commit hash sorts lower', () => {
+it('offers a reviewed revision only when the backend confirms its artifact is safe', () => {
   expect(pluginHasUpdate({ ...entry, install_type: 'direct', installed_version: '1.0.0-review.ffabcd0.20260920', version: '1.0.0-review.00abcd0.20260921', update_available: false })).toBe(true);
   expect(pluginHasUpdate({ ...entry, install_type: 'direct', installed_version: '1.0.1', version: '1.0.1' })).toBe(false);
+  for (const upgrade_allowed of [false, undefined]) {
+    const stale = { ...entry, install_type: 'direct', version: '1.0.0-review.older', installed_version: '1.0.0-review.newer', upgrade_allowed };
+    expect(pluginHasUpdate(stale)).toBe(false);
+    expect(pluginUpdateBlock(stale, { ...snapshot, plugins: [stale] }, platform)).toBe('revision');
+    expect(() => pluginInstallRequest(stale, { ...snapshot, plugins: [stale] }, platform)).toThrow();
+  }
+  const same = { ...entry, version: entry.installed_version };
+  expect(pluginInstallRequest(same, { ...snapshot, plugins: [same] }, platform).body.upgrade_only).toBe(true);
 });

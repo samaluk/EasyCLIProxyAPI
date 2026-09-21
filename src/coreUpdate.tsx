@@ -15,6 +15,7 @@ export type CoreLatest = {
   version: string;
   assetName: string;
   reviewed?: boolean;
+  updateAvailable?: boolean;
 };
 
 type CoreUpdateContextValue = {
@@ -93,9 +94,12 @@ export function coreUpdateAvailable(
   currentVersion: string | null | undefined,
   latestVersion: string | null | undefined,
   reviewed = false,
+  reviewedUpdateAvailable?: boolean,
 ) {
   if (reviewed) {
-    return Boolean(currentVersion && latestVersion && normalizeVersion(currentVersion) !== normalizeVersion(latestVersion));
+    // Only the backend can compare the installed provenance with a monotonic
+    // channel revision. Commit IDs and semantic prerelease strings cannot.
+    return Boolean(reviewedUpdateAvailable === true && currentVersion && latestVersion && normalizeVersion(currentVersion) !== normalizeVersion(latestVersion));
   }
   const current = parseSemanticVersion(currentVersion);
   const latest = parseSemanticVersion(latestVersion);
@@ -188,7 +192,7 @@ export function CoreUpdateProvider({ children }: { children: ReactNode }) {
     latest,
     error,
     checking,
-    hasUpdate: coreUpdateAvailable(status?.currentVersion, latest?.version, latest?.reviewed),
+    hasUpdate: coreUpdateAvailable(status?.currentVersion, latest?.version, latest?.reviewed, latest?.updateAvailable),
     check,
     reset,
   }), [check, checking, error, latest, reset, status?.currentVersion]);
