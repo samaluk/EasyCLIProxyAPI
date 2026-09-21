@@ -94,6 +94,7 @@ export function InstalledPluginUpdates({ busy, running, onBusyChange }: {
           <span>{entry.installed_version || '?'} → {entry.version}</span>
           <span title={entry.source_url}>{entry.source_name} · {entry.source_url}</span>
           {blocked && <span>{t(`kernel.plugins.block.${blocked}`)}</span>}
+          {blocked === 'revision' && entry.upgrade_block_reason && <span>{entry.upgrade_block_reason}</span>}
         </div>
         <button type="button" className="secondary-button" disabled={!running || busy || loading || Boolean(updating) || Boolean(blocked)} onClick={() => void update(entry)}>
           {updating === entry.id ? t('common.processing') : t(pluginHasUpdate(entry) ? 'kernel.plugins.update' : 'kernel.versions.reinstall')}
