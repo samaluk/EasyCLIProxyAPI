@@ -168,6 +168,7 @@ pub(crate) async fn check_latest_core(
 
     Ok(CoreLatest {
         reviewed: false,
+        update_available: None,
         version: normalize_version(&release.tag_name),
         asset_name: asset.name.clone(),
     })
