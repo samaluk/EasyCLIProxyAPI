@@ -16,6 +16,7 @@ export const jaOverrides = {
   "kernel.plugins.block.platform": "このプラットフォーム向けの更新がありません。",
   "kernel.plugins.block.auth": "配信元の認証を設定してから更新してください。",
   "kernel.plugins.block.version": "リリース ID またはバージョンが無効です。",
+  "kernel.plugins.block.revision": "安全な更新をプロキシが確認していません。コア更新またはチャンネルのリビジョン確認後に再読み込みしてください。",
 
 
   "kernel.reviewed.title": "コアのリリースチャンネル",

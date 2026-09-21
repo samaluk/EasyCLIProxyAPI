@@ -15,6 +15,7 @@ export const zhCN = {
   "kernel.plugins.block.platform": "当前平台没有可用更新。",
   "kernel.plugins.block.auth": "此来源需要身份验证。请先配置后再更新。",
   "kernel.plugins.block.version": "发布 ID 或版本无效。",
+  "kernel.plugins.block.revision": "代理尚未确认此更新安全。请更新内核或检查频道修订号后刷新。",
 
 
   "kernel.reviewed.title": "内核发布渠道",
