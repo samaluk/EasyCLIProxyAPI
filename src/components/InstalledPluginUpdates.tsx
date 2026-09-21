@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useI18n } from '../i18n';
 import { managementApi } from '../services/managementApi';
-import { installedPluginEntries, pluginInstallRequest, pluginUpdateBlock, pluginVersionLoaded, pluginHasUpdate,
+import { installedPluginEntries, pluginInstallRequest, pluginUpdateBlock, pluginVersionLoaded,
   type PluginPlatform, type PluginStoreSnapshot, type PluginUpdateEntry } from '../services/pluginUpdates';
 
 type RuntimePlugins = Parameters<typeof pluginVersionLoaded>[0];
@@ -94,9 +94,10 @@ export function InstalledPluginUpdates({ busy, running, onBusyChange }: {
           <span>{entry.installed_version || '?'} → {entry.version}</span>
           <span title={entry.source_url}>{entry.source_name} · {entry.source_url}</span>
           {blocked && <span>{t(`kernel.plugins.block.${blocked}`)}</span>}
+          {blocked === 'revision' && entry.upgrade_block_reason && <span>{entry.upgrade_block_reason}</span>}
         </div>
         <button type="button" className="secondary-button" disabled={!running || busy || loading || Boolean(updating) || Boolean(blocked)} onClick={() => void update(entry)}>
-          {updating === entry.id ? t('common.processing') : t(pluginHasUpdate(entry) ? 'kernel.plugins.update' : 'kernel.versions.reinstall')}
+          {updating === entry.id ? t('common.processing') : t('kernel.plugins.update')}
         </button>
       </div>;
     })}
