@@ -16,6 +16,7 @@ export const en: Record<MessageKey, string> = {
   "kernel.plugins.block.platform": "No update is available for this platform.",
   "kernel.plugins.block.auth": "This source requires authentication. Configure it before updating.",
   "kernel.plugins.block.version": "The release ID or version is invalid.",
+  "kernel.plugins.block.revision": "The proxy has not confirmed a safe update. Refresh after updating the core or reviewing the channel revision.",
 
   "kernel.reviewed.title": "Core release channel",
   "kernel.reviewed.active": "Reviewed manifest selected. Core updates use only this source.",
