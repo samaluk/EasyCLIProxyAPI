@@ -14,6 +14,7 @@ import { useCoreRuntime } from './coreRuntime';
 export type CoreLatest = {
   version: string;
   assetName: string;
+  reviewed?: boolean;
 };
 
 type CoreUpdateContextValue = {
@@ -91,7 +92,11 @@ function compareSemanticVersions(left: SemanticVersion, right: SemanticVersion) 
 export function coreUpdateAvailable(
   currentVersion: string | null | undefined,
   latestVersion: string | null | undefined,
+  reviewed = false,
 ) {
+  if (reviewed) {
+    return Boolean(currentVersion && latestVersion && normalizeVersion(currentVersion) !== normalizeVersion(latestVersion));
+  }
   const current = parseSemanticVersion(currentVersion);
   const latest = parseSemanticVersion(latestVersion);
   return Boolean(current && latest && compareSemanticVersions(latest, current) > 0);
@@ -183,7 +188,7 @@ export function CoreUpdateProvider({ children }: { children: ReactNode }) {
     latest,
     error,
     checking,
-    hasUpdate: coreUpdateAvailable(status?.currentVersion, latest?.version),
+    hasUpdate: coreUpdateAvailable(status?.currentVersion, latest?.version, latest?.reviewed),
     check,
     reset,
   }), [check, checking, error, latest, reset, status?.currentVersion]);
