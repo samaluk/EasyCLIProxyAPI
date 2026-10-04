@@ -206,8 +206,12 @@ async fn resolve_app_update(
     let portable_support = target
         .map(|(_, arch)| validate_local_portable_app_manifest(arch))
         .transpose()?;
-    let auto_update_supported = portable_support == Some(true) && asset.is_some();
-    let unsupported_reason = if auto_update_supported {
+    let reviewed_block = reviewed_app_update_guard(&config).err();
+    let auto_update_supported =
+        reviewed_block.is_none() && portable_support == Some(true) && asset.is_some();
+    let unsupported_reason = if reviewed_block.is_some() {
+        reviewed_block
+    } else if auto_update_supported {
         None
     } else if portable_support != Some(true) {
         Some("This application is not a portable version that supports automatic upgrades. Manually download the first supported version".to_string())
@@ -671,6 +675,11 @@ pub(crate) async fn start_app_update(
     if portable_update_platform_key().is_none() {
         return Err("The current platform does not support in-app automatic upgrades".to_string());
     }
+    // Serialize the channel guard with channel changes and core installation.
+    let core_state = app.state::<CoreProcessState>();
+    let _channel_guard = lock_core_operation(core_state.inner())?;
+    let config = app.state::<GuiConfigState>().snapshot()?;
+    reviewed_app_update_guard(&config)?;
     let token = CancellationToken::new();
     state.start(token.clone())?;
     let task = state.snapshot();
